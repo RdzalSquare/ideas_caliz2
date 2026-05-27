@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+<div style="max-width: 800px; margin: 0 auto; padding: 2rem;">
+  <!-- Header -->
+  <div style="margin-bottom: 2rem;">
+    <h1 style="font-size: 24px; font-weight: 500; margin: 0 0 0.5rem;">Gestor de PDF</h1>
+    <p style="color: var(--color-text-secondary); margin: 0;">Sube y gestiona tu archivo PDF fácilmente</p>
+  </div>
+
+  <!-- Upload Section -->
+  <div style="background: var(--color-background-secondary); border: 2px dashed var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 2rem; text-align: center; margin-bottom: 2rem; cursor: pointer;" id="dropZone">
+    <i class="ti ti-upload" style="font-size: 32px; color: var(--color-text-secondary); display: block; margin-bottom: 0.5rem;"></i>
+    <p style="margin: 0.5rem 0; font-weight: 500;">Arrastra tu PDF aquí</p>
+    <p style="color: var(--color-text-secondary); font-size: 14px; margin: 0.25rem 0;">o haz clic para seleccionar</p>
+    <input type="file" accept="application/pdf" id="fileInput" style="display: none;">
+  </div>
+
+  <!-- File Info -->
+  <div id="fileInfo" style="display: none; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem; margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <i class="ti ti-file-pdf" style="font-size: 24px; color: #D4533F;"></i>
+        <div>
+          <p style="font-weight: 500; margin: 0; word-break: break-word;" id="fileName">nombre.pdf</p>
+          <p style="color: var(--color-text-secondary); font-size: 13px; margin: 4px 0 0;" id="fileSize">0 KB</p>
+        </div>
+      </div>
+      <button id="downloadBtn" style="padding: 8px 12px; background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; color: var(--color-text-primary);">
+        <i class="ti ti-download" style="font-size: 16px;"></i>
+        Descargar
+      </button>
+    </div>
+    <button id="replaceBtn" style="width: 100%; padding: 10px; background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; color: var(--color-text-primary); font-weight: 500;">
+      Reemplazar archivo
+    </button>
+  </div>
+
+  <!-- PDF Viewer -->
+  <div id="pdfContainer" style="display: none;">
+    <div style="background: var(--color-background-secondary); border-radius: var(--border-radius-lg); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+      <!-- Controls -->
+      <div style="background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary); padding: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button id="prevBtn" style="padding: 6px 10px; background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; color: var(--color-text-primary);">
+            <i class="ti ti-chevron-left"></i>
+          </button>
+          <input type="number" id="pageNum" min="1" value="1" style="width: 50px; text-align: center; padding: 6px;">
+          <span id="pageCount" style="color: var(--color-text-secondary); font-size: 14px;">de 1</span>
+          <button id="nextBtn" style="padding: 6px 10px; background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; color: var(--color-text-primary);">
+            <i class="ti ti-chevron-right"></i>
+          </button>
+        </div>
+        <button id="zoomInBtn" style="padding: 6px 10px; background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; color: var(--color-text-primary);">
+          <i class="ti ti-zoom-in"></i>
+        </button>
+        <button id="zoomOutBtn" style="padding: 6px 10px; background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; color: var(--color-text-primary);">
+          <i class="ti ti-zoom-out"></i>
+        </button>
+      </div>
+      <!-- Canvas -->
+      <div style="background: var(--color-background-secondary); padding: 1rem; overflow: auto; text-align: center; max-height: 600px;">
+        <canvas id="pdfCanvas" style="max-width: 100%; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); background: white;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div id="emptyState" style="text-align: center; padding: 3rem 1rem; color: var(--color-text-secondary);">
+    <i class="ti ti-file-text" style="font-size: 48px; display: block; margin-bottom: 1rem; opacity: 0.5;"></i>
+    <p>No hay archivo cargado. Sube un PDF para comenzar.</p>
+  </div>
+</div>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  let pdfDoc = null;
+  let currentPage = 1;
+  let zoom = 1.5;
+  let currentFile = null;
+
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const fileInfo = document.getElementById('fileInfo');
+  const pdfContainer = document.getElementById('pdfContainer');
+  const emptyState = document.getElementById('emptyState');
+  const canvas = document.getElementById('pdfCanvas');
+  const ctx = canvas.getContext('2d');
+  const pageNum = document.getElementById('pageNum');
+  const pageCount = document.getElementById('pageCount');
+  const fileName = document.getElementById('fileName');
+  const fileSize = document.getElementById('fileSize');
+
+  // Cargar desde localStorage
+  function loadFromStorage() {
+    const stored = localStorage.getItem('uploadedPDF');
+    if (stored) {
+      const arr = stored.split(',');
+      const bstr = atob(arr[1]);
+      const n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      for (let i = 0; i < n; i++) u8arr[i] = bstr.charCodeAt(i);
+      const blob = new Blob([u8arr], { type: 'application/pdf' });
+      currentFile = { name: localStorage.getItem('pdfName'), blob: blob };
+      displayFile();
+      renderPDF();
+    }
+  }
+
+  // Drag and drop
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.style.backgroundColor = 'var(--color-background-tertiary)';
+  });
+
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.backgroundColor = '';
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.backgroundColor = '';
+    const files = e.dataTransfer.files;
+    if (files[0]?.type === 'application/pdf') {
+      handleFile(files[0]);
+    }
+  });
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    currentFile = { name: file.name, blob: file };
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      localStorage.setItem('uploadedPDF', e.target.result);
+      localStorage.setItem('pdfName', file.name);
+      displayFile();
+      renderPDF();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function displayFile() {
+    fileName.textContent = currentFile.name;
+    fileSize.textContent = (currentFile.blob.size / 1024).toFixed(1) + ' KB';
+    fileInfo.style.display = 'block';
+    emptyState.style.display = 'none';
+  }
+
+  async function renderPDF() {
+    const arrayBuffer = await currentFile.blob.arrayBuffer();
+    pdfDoc = await pdfjsLib.getDocument(arrayBuffer).promise;
+    pageCount.textContent = `de ${pdfDoc.numPages}`;
+    currentPage = 1;
+    pageNum.value = 1;
+    renderPage();
+  }
+
+  async function renderPage() {
+    if (!pdfDoc) return;
+    const page = await pdfDoc.getPage(currentPage);
+    const viewport = page.getViewport({ scale: zoom });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    pdfContainer.style.display = 'block';
+  }
+
+  document.getElementById('prevBtn').addEventListener('click', () => {
+    if (currentPage > 1) {
+      currentPage--;
+      pageNum.value = currentPage;
+      renderPage();
+    }
+  });
+
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    if (currentPage < pdfDoc.numPages) {
+      currentPage++;
+      pageNum.value = currentPage;
+      renderPage();
+    }
+  });
+
+  pageNum.addEventListener('change', () => {
+    const page = Math.max(1, Math.min(pdfDoc.numPages, parseInt(pageNum.value) || 1));
+    currentPage = page;
+    pageNum.value = page;
+    renderPage();
+  });
+
+  document.getElementById('zoomInBtn').addEventListener('click', () => {
+    zoom = Math.min(zoom + 0.2, 3);
+    renderPage();
+  });
+
+  document.getElementById('zoomOutBtn').addEventListener('click', () => {
+    zoom = Math.max(zoom - 0.2, 0.5);
+    renderPage();
+  });
+
+  document.getElementById('replaceBtn').addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  document.getElementById('downloadBtn').addEventListener('click', () => {
+    const url = URL.createObjectURL(currentFile.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = currentFile.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  loadFromStorage();
+</script>
+</body>
+</html>
